@@ -1,4 +1,4 @@
-import { SMTPClient } from "https://deno.land/x/denomailer/mod.ts"
+import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts"
 import env from "../deno.env.ts"
 
 const { FROM_EMAIL, FROM_EMAIL_PWD, RECV_EMAIL } = env.toObject()

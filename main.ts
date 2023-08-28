@@ -1,4 +1,4 @@
-// @deno-types="npm:@types/express@4"
+// @deno-types="npm:@types/express"
 import express, { NextFunction, Request, Response } from "npm:express"
 import usersRouter from "./routes/users.ts"
 import env from "./deno.env.ts"
