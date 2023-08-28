@@ -1,5 +1,9 @@
 // @deno-types="npm:@types/express"
-import express, { NextFunction, Request, Response } from "npm:express"
+import express, {
+  NextFunction,
+  Request,
+  Response,
+} from "https://esm.sh/express@4.18.2"
 import usersRouter from "./routes/users.ts"
 import env from "./deno.env.ts"
 import { sendEmail } from "./services/email.service.ts"
