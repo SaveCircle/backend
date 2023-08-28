@@ -23,10 +23,14 @@ export const sendEmail = async (config: {
   html: string
   to: string
 }) => {
-  const res = await client.send({
-    from: FROM_EMAIL,
-    ...config,
-  })
-  console.log(res)
-  return await client.close()
+  try {
+    const res = await client.send({
+      from: FROM_EMAIL,
+      ...config,
+    })
+    console.log(res)
+    return await client.close()
+  } catch (err) {
+    console.log(err, "sfjafdjfdsjf bakjdfd")
+  }
 }
