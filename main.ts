@@ -6,17 +6,10 @@ import express, {
 } from "https://esm.sh/express@4.18.2"
 import usersRouter from "./routes/users.ts"
 import env from "./deno.env.ts"
-import { sendEmail } from "./services/email.service.ts"
+
 const app = express()
 
 const port: number = Number(env.get("APP_PORT")) || 3000
-
-await sendEmail({
-  subject: "example",
-  content: "auto",
-  html: "<p>Hello World</p>",
-  to: "exploitenomah@gmail.com",
-})
 
 const reqLogger = (req: Request, _res: Response, next: NextFunction) => {
   console.log(

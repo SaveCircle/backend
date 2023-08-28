@@ -24,13 +24,18 @@ export const sendEmail = async (config: {
   to: string
 }) => {
   try {
-    const res = await client.send({
+    await client.send({
       from: FROM_EMAIL,
       ...config,
     })
-    console.log('res', res, 'asfjdsf')
-    return await client.close()
+    await client.close()
+    return {
+      done: true,
+    }
   } catch (err) {
-    console.log(err, "sfjafdjfdsjf bakjdfd")
+    return {
+      error: true,
+      ...err,
+    }
   }
 }
