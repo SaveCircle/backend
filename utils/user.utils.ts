@@ -97,6 +97,9 @@ export const regularUserSignup: RouteHandler = async function (
     )
     req.response = generateResponse({ _id: newUserId.toJSON() }, 201)
     next()
+  } else if ((email || password) && !firstName && !lastName) {
+    req.response = generateResponse({ message: "Invalid credentials" }, 400)
+    next()
   }
   req.response = generateResponse({ message: "All fields are required" }, 400)
   next()
