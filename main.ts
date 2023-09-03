@@ -11,6 +11,9 @@ const app = express()
 
 const port: number = Number(env.get("APP_PORT")) || 3000
 
+app.use(express.json())
+app.use(express.urlencoded({ extended: false }))
+
 const reqLogger = (req: Request, _res: Response, next: NextFunction) => {
   console.log(
     `from ${req.hostname} requesting ${req.path} with a ${req.method} method`
