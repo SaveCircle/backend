@@ -8,3 +8,15 @@ export const routeTryCatcher: (arg0: RouteHandler) => RouteHandler =
       res.status(500).json({ message: err.message })
     }
   }
+
+export const generateResponse = (
+  body: {
+    [x: string]: unknown
+  },
+  status: number
+) => {
+  return {
+    body,
+    status,
+  }
+}
