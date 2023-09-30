@@ -4,7 +4,9 @@ import express, {
   Request,
   Response,
 } from "https://esm.sh/express@4.18.2"
+import esusuRouter from "./routes/esusu.ts"
 import usersRouter from "./routes/users.ts"
+import ErrorHandler from "./middleware/error.ts"
 import env from "./deno.env.ts"
 
 const app = express()
@@ -23,7 +25,8 @@ const reqLogger = (req: Request, _res: Response, next: NextFunction) => {
 app.use(reqLogger)
 
 app.use("/api/v1/users", usersRouter)
-
+app.use("/api/v1/esusus", esusuRouter)
+app.use(ErrorHandler)
 app.listen(port, () => {
   console.log("listening on port " + port)
 })
