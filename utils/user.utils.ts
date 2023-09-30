@@ -51,6 +51,9 @@ export async function createNewUserWithPassword({
     emailVerified: false,
     emailVerificationToken,
     accountType: "normal" as normalAccount,
+    createdAt: new Date(Date.now()),
+    isDeleted: false,
+    updatedAt: new Date(Date.now()),
   }
   return await User.insertOne(newUser)
 }
@@ -138,6 +141,9 @@ export const googleUserSignup: RouteHandler = async function (req, _res, next) {
       picture,
       email,
       accountType: "google" as googleAccount,
+      createdAt: new Date(Date.now()),
+      isDeleted: false,
+      updatedAt: new Date(Date.now()),
     }
     const newUserId = await User.insertOne(userData)
     const jwt = await generateJWTWithUserId(newUserId.toString())
