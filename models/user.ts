@@ -15,6 +15,9 @@ export type UserSchema = {
   emailVerificationToken?: string
   passwordResetToken?: string
   accountType: googleAccount | normalAccount
+  createdAt: Date
+  isDeleted: boolean
+  updatedAt: Date
 }
 
 const users = db.collection<UserSchema>("users")
