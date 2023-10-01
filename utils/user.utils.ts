@@ -60,11 +60,11 @@ export async function createNewUserWithPassword({
 
 export const sendUserVerificationEmail = async function (
   user: UserSchema,
-  token: string
+  token: string 
 ) {
   const emailTemplate = renderTemplate("./verify-email", {
     user,
-    verificationLink: `localhost:1990/api/v1/users/${user._id}?vrf-token=${token}`,
+    verificationLink: `<a style='color:white;' href='https://localhost:1990/api/v1/users/${user._id}?vrf-token=${token}' rel='noreferrer' target='_blank'>Verify Email</a>`,
   })
   return await sendEmail({
     subject: "Verify Your Email",
