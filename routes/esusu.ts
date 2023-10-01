@@ -10,6 +10,7 @@ import {
   joinEsusu,
   getSingleEsusu,
   getManyEsusus,
+  inviteUserToEsusu,
 } from "../controllers/esusu.ts"
 
 const esusuRouter = Router()
@@ -18,5 +19,6 @@ esusuRouter.post("/", createNewEsusu, jsonResponseSender)
 esusuRouter.get("/", getManyEsusus, jsonResponseSender)
 esusuRouter.put("/:esusuId", joinEsusu, jsonResponseSender)
 esusuRouter.get("/:esusuId", getSingleEsusu, jsonResponseSender)
+esusuRouter.post("/:esusuId/invite", inviteUserToEsusu, jsonResponseSender)
 
 export default esusuRouter
