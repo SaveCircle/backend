@@ -20,6 +20,7 @@ export type esusuSchema = {
   isLocked: boolean
   invitationKey: string
   invitees: Bson.ObjectId[]
+  inviteeEmails: string[]
 }
 
 const esusus = db.collection<esusuSchema>("esusus")
