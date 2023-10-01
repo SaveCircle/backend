@@ -2,9 +2,11 @@ import { RouteHandler } from "../types/routes.types.ts"
 import env from "../deno.env.ts"
 import { generateResponse } from "../utils/routes.utils.ts"
 import Esusu, { cycle } from "../models/esusu.ts"
+import User from "../models/user.ts"
 import { Bson } from "https://deno.land/x/mongo@v0.32.0/mod.ts"
 import { AppError } from "../types/app.types.ts"
 import { routeTryCatcher } from "../utils/routes.utils.ts"
+import { sendInvitationToJoinEsusu } from "../utils/esusu.utils.ts"
 
 export const createNewEsusu: RouteHandler = routeTryCatcher(
   async (req, _res, next) => {
@@ -42,12 +44,78 @@ export const createNewEsusu: RouteHandler = routeTryCatcher(
       isLocked: false,
       contributionAmount,
       contributionFrequency,
-      invitationKey: crypto.randomUUID(),
+      invitationKey: (new Date().getTime() + 60 * 60 * 24 * 1000).toString(),
       invitees: [],
+      inviteeEmails: [],
     }
     const esusuId = await Esusu.insertOne(newEsusu)
     const esusu = await Esusu.findOne({ _id: esusuId })
     req.response = generateResponse({ esusu }, 201)
+    next()
+  }
+)
+export const inviteUserToEsusu: RouteHandler = routeTryCatcher(
+  async (req, _res, next) => {
+    const error: AppError = new Error("Resource not found!")
+    const { esusuId } = req.params
+
+    const esusu = await Esusu.findOne({
+      _id: new Bson.ObjectId(esusuId as string),
+    })
+    if (!esusu) {
+      error.statusCode = 404
+      return next(error)
+    }
+    if (esusu.creator.toString() !== req.user._id.toString()) {
+      error.statusCode = 403
+      error.message = "Action not allowed!"
+      return next(error)
+    }
+    const { invitee } = req.body
+    error.statusCode = 400
+    if (!invitee) {
+      error.message = "Please provide invitee email"
+      return next(error)
+    }
+    const userByEmail = await User.findOne({ email: invitee })
+    if (userByEmail) {
+      if (
+        esusu.members
+          .map((el) => el.toString())
+          .includes(userByEmail._id.toString())
+      ) {
+        error.message = "Cannot send invite. Invitee already a member!"
+        error.statusCode = 400
+        return next(error)
+      }
+    }
+    let invitationKey = esusu.invitationKey
+    if (new Date(invitationKey) < new Date(Date.now())) {
+      invitationKey = (new Date().getTime() + 60 * 60 * 24 * 1000).toString()
+    }
+    Esusu.findAndModify(
+      { _id: new Bson.ObjectId(esusuId) },
+      {
+        update: {
+          ...esusu,
+          invitees: userByEmail
+            ? [...esusu.invitees, userByEmail._id]
+            : esusu.invitees,
+          invitationKey,
+          inviteeEmails: [
+            ...(esusu.inviteeEmails || []).filter((el) => el !== invitee),
+            invitee,
+          ],
+        },
+        new: true
+      }
+    )
+    const emailPromise = await sendInvitationToJoinEsusu({
+      invitee,
+      esusuId,
+      invitationKey,
+    })
+    console.log(emailPromise)
     next()
   }
 )
@@ -64,7 +132,16 @@ export const joinEsusu: RouteHandler = routeTryCatcher(
     const esusu = await Esusu.findOne({
       _id: new Bson.ObjectId(esusuId as string),
     })
-    if (!esusu || esusu.invitationKey !== invitationKey) return next(error)
+    console.log(
+      typeof esusu !== "object" || invitationKey !== esusu.invitationKey
+    )
+    if (typeof esusu !== "object" || esusu.invitationKey !== invitationKey)
+      return next(error)
+    if (new Date(invitationKey) < new Date(Date.now())) {
+      error.message = "Invitation expired. Please ask that it be resent to you."
+      error.statusCode = 400
+      return next(error)
+    }
     const memberIdsAsStrings = esusu.members.map((el) => el.toString())
     if (memberIdsAsStrings.includes(req.user._id.toString())) {
       error.message = "Already a member"
@@ -72,7 +149,11 @@ export const joinEsusu: RouteHandler = routeTryCatcher(
       return next(error)
     }
     const inviteesIdsAsStrings = esusu.invitees.map((el) => el.toString())
-    if (!inviteesIdsAsStrings.includes(req.user._id.toString)) next(error)
+    if (
+      !inviteesIdsAsStrings.includes(req.user._id.toString) &&
+      !esusu.inviteeEmails.includes(req.user.email)
+    )
+      return next(error)
 
     const updatedEsusu = await Esusu.findAndModify(
       { _id: new Bson.ObjectId(esusu._id) },
@@ -80,7 +161,12 @@ export const joinEsusu: RouteHandler = routeTryCatcher(
         update: {
           ...esusu,
           members: [...esusu.members, new Bson.ObjectId(req.user._id)],
+          invitees: esusu.invitees
+            .map((el) => el.toString())
+            .filter((it) => it !== req.user._id.toString())
+            .map((el) => new Bson.ObjectId(el)),
         },
+        new: true,
       }
     )
     req.response = generateResponse({ esusu: updatedEsusu }, 201)
