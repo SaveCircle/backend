@@ -1,4 +1,3 @@
-import { UserSchema } from "../models/user.ts"
 import { sendEmail } from "../services/email.service.ts"
 import { renderTemplate } from "../services/eta.service.ts"
 
@@ -7,13 +6,16 @@ export const sendInvitationToJoinEsusu = async ({
   esusuId,
   invitationKey,
   invitee,
+  esusuName
 }: {
-  inviter: UserSchema
+  inviter: string
   esusuId: string
   invitationKey: string
   invitee: string
+  esusuName: string
 }) => {
   const emailTemplate = renderTemplate("./send-esusu-invite", {
+    esusuName,
     inviter,
     invitationLink: `<a style='color:white;' href='https://localhost:1990/api/v1/${esusuId}/${invitationKey}' rel='noreferrer' target='_blank'>Accept Invite</a>`,
   })
