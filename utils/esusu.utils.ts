@@ -1,18 +1,21 @@
+import { UserSchema } from "../models/user.ts"
 import { sendEmail } from "../services/email.service.ts"
 import { renderTemplate } from "../services/eta.service.ts"
 
 export const sendInvitationToJoinEsusu = async ({
-  invitee,
+  inviter,
   esusuId,
   invitationKey,
+  invitee,
 }: {
-  invitee: string
+  inviter: UserSchema
   esusuId: string
   invitationKey: string
+  invitee: string
 }) => {
-  const emailTemplate = renderTemplate("./verify-email", {
-    user: {},
-    verificationLink: `<a style='color:white;' href='https://localhost:1990/api/v1' rel='noreferrer' target='_blank'>Verify Email</a>`,
+  const emailTemplate = renderTemplate("./send-esusu-invite", {
+    inviter,
+    invitationLink: `<a style='color:white;' href='https://localhost:1990/api/v1/${esusuId}/${invitationKey}' rel='noreferrer' target='_blank'>Accept Invite</a>`,
   })
   return await sendEmail({
     subject: `You have an invite!`,
