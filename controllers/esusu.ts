@@ -93,29 +93,40 @@ export const inviteUserToEsusu: RouteHandler = routeTryCatcher(
     if (new Date(invitationKey) < new Date(Date.now())) {
       invitationKey = (new Date().getTime() + 60 * 60 * 24 * 1000).toString()
     }
-    Esusu.findAndModify(
-      { _id: new Bson.ObjectId(esusuId) },
-      {
-        update: {
-          ...esusu,
-          invitees: userByEmail
-            ? [...esusu.invitees, userByEmail._id]
-            : esusu.invitees,
-          invitationKey,
-          inviteeEmails: [
-            ...(esusu.inviteeEmails || []).filter((el) => el !== invitee),
-            invitee,
-          ],
-        },
-        new: true
-      }
-    )
     const emailPromise = await sendInvitationToJoinEsusu({
       invitee,
       esusuId,
       invitationKey,
     })
-    console.log(emailPromise)
+
+    if (emailPromise?.done) {
+      const updEsusu = await Esusu.findAndModify(
+        { _id: new Bson.ObjectId(esusuId) },
+        {
+          update: {
+            ...esusu,
+            invitees: userByEmail
+              ? [...esusu.invitees, userByEmail._id]
+              : esusu.invitees,
+            invitationKey,
+            inviteeEmails: [
+              ...(esusu.inviteeEmails || []).filter((el) => el !== invitee),
+              invitee,
+            ],
+          },
+          new: true,
+        }
+      )
+      req.response = generateResponse(
+        { message: "Invite sent successfully!", esusu: updEsusu },
+        200
+      )
+    } else {
+      req.response = generateResponse(
+        { message: "Unable to send invite!" },
+        500
+      )
+    }
     next()
   }
 )
@@ -132,9 +143,6 @@ export const joinEsusu: RouteHandler = routeTryCatcher(
     const esusu = await Esusu.findOne({
       _id: new Bson.ObjectId(esusuId as string),
     })
-    console.log(
-      typeof esusu !== "object" || invitationKey !== esusu.invitationKey
-    )
     if (typeof esusu !== "object" || esusu.invitationKey !== invitationKey)
       return next(error)
     if (new Date(invitationKey) < new Date(Date.now())) {
