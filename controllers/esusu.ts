@@ -94,10 +94,11 @@ export const inviteUserToEsusu: RouteHandler = routeTryCatcher(
       invitationKey = (new Date().getTime() + 60 * 60 * 24 * 1000).toString()
     }
     const emailPromise = await sendInvitationToJoinEsusu({
-      inviter: req.user,
+      inviter: `${req.user.firstName} ${req.user.lastName}`,
       esusuId,
       invitationKey,
       invitee,
+      esusuName: esusu.name as string,
     })
 
     if (emailPromise?.done) {
