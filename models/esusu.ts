@@ -21,6 +21,7 @@ export type esusuSchema = {
   invitationKey: string
   invitees: Bson.ObjectId[]
   inviteeEmails: string[]
+  name?: string
 }
 
 const esusus = db.collection<esusuSchema>("esusus")
