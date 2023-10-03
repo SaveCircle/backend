@@ -1,5 +1,4 @@
 import { RouteHandler } from "../types/routes.types.ts"
-import env from "../deno.env.ts"
 import { generateResponse } from "../utils/routes.utils.ts"
 import Esusu, { cycle } from "../models/esusu.ts"
 import User from "../models/user.ts"
@@ -10,7 +9,7 @@ import { sendInvitationToJoinEsusu } from "../utils/esusu.utils.ts"
 
 export const createNewEsusu: RouteHandler = routeTryCatcher(
   async (req, _res, next) => {
-    const { contributionAmount, contributionFrequency } = req.body
+    const { contributionAmount, contributionFrequency, name } = req.body
     if (!contributionAmount || !contributionFrequency) {
       req.response = generateResponse(
         { message: "All fields are required" },
@@ -47,6 +46,7 @@ export const createNewEsusu: RouteHandler = routeTryCatcher(
       invitationKey: (new Date().getTime() + 60 * 60 * 24 * 1000).toString(),
       invitees: [],
       inviteeEmails: [],
+      name,
     }
     const esusuId = await Esusu.insertOne(newEsusu)
     const esusu = await Esusu.findOne({ _id: esusuId })
@@ -94,9 +94,10 @@ export const inviteUserToEsusu: RouteHandler = routeTryCatcher(
       invitationKey = (new Date().getTime() + 60 * 60 * 24 * 1000).toString()
     }
     const emailPromise = await sendInvitationToJoinEsusu({
-      invitee,
+      inviter: req.user,
       esusuId,
       invitationKey,
+      invitee,
     })
 
     if (emailPromise?.done) {
