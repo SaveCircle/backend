@@ -11,6 +11,8 @@ import { createJWT, generateCryptoKey } from "../utils/auth.utils.ts"
 import { sendEmail } from "../services/email.service.ts"
 import { renderTemplate } from "../services/eta.service.ts"
 import { ObjectId } from "https://deno.land/x/mongo@v0.32.0/deps.ts"
+import jwtDecode from "npm:jwt-decode"
+import { GoogleJwtPayload } from "../types/app.types.ts"
 
 export async function generateJWTWithUserId(userId: string) {
   return await createJWT(
@@ -30,37 +32,9 @@ export async function getUserById(_id: string) {
   return await User.findOne({ _id: new ObjectId(_id) })
 }
 
-export async function createNewUserWithPassword({
-  firstName,
-  lastName,
-  email,
-  password,
-  emailVerificationToken,
-}: {
-  firstName: string
-  lastName: string
-  email: string
-  password: string
-  emailVerificationToken: string
-}) {
-  const newUser = {
-    firstName,
-    lastName,
-    email,
-    password: await bcryptHash(password),
-    emailVerified: false,
-    emailVerificationToken,
-    accountType: "normal" as normalAccount,
-    createdAt: new Date(Date.now()),
-    isDeleted: false,
-    updatedAt: new Date(Date.now()),
-  }
-  return await User.insertOne(newUser)
-}
-
 export const sendUserVerificationEmail = async function (
   user: UserSchema,
-  token: string 
+  token: string
 ) {
   const emailTemplate = renderTemplate("./verify-email", {
     user,
@@ -79,83 +53,68 @@ export const generateEmailVerificationToken = function () {
   return token
 }
 
-export const regularUserSignup: RouteHandler = async function (
-  req,
-  _res,
-  next
-) {
-  const { firstName, lastName, password, email } = req.body
-  if (firstName && lastName && email && password) {
-    const emailVerificationToken = generateEmailVerificationToken()
-    const newUserId = await createNewUserWithPassword({
+export const createNewUser = async (userData: {
+  firstName: string
+  lastName: string
+  email: string
+  password?: string
+  emailVerificationToken?: string
+  emailVerified: boolean
+  accountType: normalAccount | googleAccount
+  picture?: string
+}) => {
+  const {
+    firstName,
+    lastName,
+    password,
+    email,
+    emailVerificationToken,
+    emailVerified,
+    accountType,
+    picture,
+  } = userData
+  if (
+    firstName &&
+    lastName &&
+    email &&
+    ((accountType === "normal" && password) || accountType === "google")
+  ) {
+    const newUser = {
       firstName,
       lastName,
       email,
-      password,
-      emailVerificationToken,
-    })
-    await sendUserVerificationEmail(
-      (await getUserById(newUserId.toString())) as UserSchema,
-      emailVerificationToken
-    )
-    req.response = generateResponse({ _id: newUserId.toJSON() }, 201)
-    next()
-  } else if ((email || password) && !firstName && !lastName) {
-    req.response = generateResponse({ message: "Invalid credentials" }, 400)
-    next()
-  }
-  req.response = generateResponse({ message: "All fields are required" }, 400)
-  next()
-}
-
-export const googleUserSignup: RouteHandler = async function (req, _res, next) {
-  const {
-    email,
-    clientId,
-    nbf,
-    iss,
-    exp,
-    emailVerified,
-    givenName,
-    familyName,
-    picture,
-  } = req.body
-  if (
-    !clientId ||
-    clientId !== env.get("GOOGLE_CLIENT_ID") ||
-    !nbf ||
-    !iss ||
-    !exp ||
-    emailVerified === undefined ||
-    Math.sign(Date.now() - nbf * 1000) === -1 ||
-    Date.now() > exp * 1000 ||
-    iss !== env.get("GOOGLE_ISS")
-  ) {
-    req.response = generateResponse({ message: "Bad Bequest" }, 400)
-    next()
-  } else {
-    const userData = {
+      password: password ? await bcryptHash(password) : undefined,
       emailVerified,
-      firstName: givenName,
-      lastName: familyName,
+      emailVerificationToken,
+      accountType,
       picture,
-      email,
-      accountType: "google" as googleAccount,
       createdAt: new Date(Date.now()),
       isDeleted: false,
       updatedAt: new Date(Date.now()),
     }
-    const newUserId = await User.insertOne(userData)
-    const jwt = await generateJWTWithUserId(newUserId.toString())
-    req.response = generateResponse(
-      { _id: newUserId.toJSON(), token: jwt },
-      200
-    )
-    next()
+    return await User.insertOne(newUser)
+  } else {
+    throw new Error("Missing required fields!")
   }
 }
 
-export const loginUser: RouteHandler = async function (req, _res, next) {
+export const signup: RouteHandler = async function (req, _res, next) {
+  const emailVerificationToken = generateEmailVerificationToken()
+  const newUserId = await createNewUser({
+    ...req.body,
+    emailVerificationToken,
+    accountType: "normal",
+    emailVerified: false,
+  })
+  await sendUserVerificationEmail(
+    (await getUserById(newUserId.toString())) as UserSchema,
+    emailVerificationToken
+  )
+  req.response = generateResponse({ _id: newUserId.toJSON() }, 201)
+  return next()
+}
+
+export const login: RouteHandler = async function (req, _res, next) {
   const user = { ...req.user }
   const { email, password } = req.body
   const isMatchedPassword = await bcryptCompare(password, user.password)
@@ -163,19 +122,75 @@ export const loginUser: RouteHandler = async function (req, _res, next) {
     const jwt = await generateJWTWithUserId(user._id.toString())
     delete user.password
     req.response = generateResponse({ user, token: jwt }, 200)
-    next()
+    return next()
   } else {
     req.response = generateResponse({ message: "Invalid credentials" }, 400)
-    next()
+    return next()
   }
 }
 
-export const loginUserWithGoogle: RouteHandler = async function (
-  req,
-  _res,
-  next
-) {
+export function decodeGoogleJwt(token: string): GoogleJwtPayload {
+  return jwtDecode.default(token)
+}
+
+const isNbfInvalid = (nbf: number) => Math.sign(Date.now() - nbf * 1000) === -1
+
+export const decodedJwtIsValid = (decodedJwt: GoogleJwtPayload) => {
+  const { aud, nbf, iss, exp, email_verified } = decodedJwt
+
+  if (
+    !aud ||
+    aud !== env.get("GOOGLE_CLIENT_ID") ||
+    !nbf ||
+    !iss ||
+    !exp ||
+    !email_verified ||
+    isNbfInvalid(nbf) ||
+    Date.now() > exp * 1000 ||
+    iss !== env.get("GOOGLE_ISS")
+  )
+    return false
+  return true
+}
+
+export const signupWithGoogle: RouteHandler = async function (req, _res, next) {
+  const { given_name, family_name, email_verified, picture, email } =
+    req.decodedGoogleJwt
+  const userData = {
+    emailVerified: email_verified,
+    firstName: given_name,
+    lastName: family_name,
+    picture,
+    email,
+    accountType: "google" as googleAccount,
+    emailVerificationToken: undefined,
+  }
+  const newUserId = await createNewUser(userData)
+  const jwt = await generateJWTWithUserId(newUserId.toString())
+  req.response = generateResponse({ _id: newUserId.toJSON(), token: jwt }, 200)
+  return next()
+}
+
+export const loginWithGoogle: RouteHandler = async function (req, _res, next) {
   const user = { ...req.user }
+  if (!user.emailVerified) {
+    const emailVerificationToken = generateEmailVerificationToken()
+    await sendUserVerificationEmail(user, emailVerificationToken)
+    await User.findAndModify(
+      { _id: user._id, emailVerificationToken },
+      {
+        update: {
+          ...user,
+          emailVerified: true,
+        },
+      }
+    )
+    req.response = generateResponse(
+      { message: "Please verify your email!" },
+      201
+    )
+    return next()
+  }
   const jwt = await generateJWTWithUserId(user._id.toString())
   req.response = generateResponse({ user, token: jwt }, 200)
   next()

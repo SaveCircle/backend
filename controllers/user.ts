@@ -8,9 +8,8 @@ import {
   getUserById,
   decodeGoogleJwt,
   decodedJwtIsValid,
-  verifyUser
+  verifyUser,
 } from "../utils/user.utils.ts"
-import env from "../deno.env.ts"
 import { generateResponse } from "../utils/routes.utils.ts"
 
 export const handlePostToUsers: RouteHandler = async (req, res, next) => {
@@ -28,11 +27,8 @@ export const handlePostToUsers: RouteHandler = async (req, res, next) => {
   } else if (req.body.googleJwt) {
     const decoded = decodeGoogleJwt(req.body.googleJwt)
     const isDecodedValid = decodedJwtIsValid(decoded)
-    if(!isDecodedValid){
-      req.response = generateResponse(
-        { message: "An error occured!" },
-        400
-      )
+    if (!isDecodedValid) {
+      req.response = generateResponse({ message: "An error occured!" }, 400)
       return next()
     }
     const existingUser = await getUserByEmail(decoded.email)
