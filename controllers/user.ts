@@ -1,70 +1,54 @@
 import { RouteHandler } from "../types/routes.types.ts"
 import {
   getUserByEmail,
-  regularUserSignup,
-  googleUserSignup,
-  loginUser,
-  generateEmailVerificationToken,
-  sendUserVerificationEmail,
+  signup,
+  login,
+  signupWithGoogle,
+  loginWithGoogle,
   getUserById,
-  verifyUser,
-  loginUserWithGoogle,
+  decodeGoogleJwt,
+  decodedJwtIsValid,
+  verifyUser
 } from "../utils/user.utils.ts"
 import env from "../deno.env.ts"
 import { generateResponse } from "../utils/routes.utils.ts"
 
 export const handlePostToUsers: RouteHandler = async (req, res, next) => {
-  if (!req.body.email) {
+  if (!req.body.email && !req.body.googleJwt) {
     req.response = generateResponse({ message: "Not allowed" }, 401)
     next()
   }
-  const user = await getUserByEmail(req.body.email)
-  if (!user) {
-    const { password } = req.body
-    if (password !== undefined) {
-      return regularUserSignup(req, res, next)
-    } else {
-      return googleUserSignup(req, res, next)
+  if (req.body.email) {
+    const existingUser = await getUserByEmail(req.body.email)
+    if (!existingUser) return signup(req, res, next)
+    else {
+      req.user = existingUser
+      return login(req, res, next)
     }
-  } else {
-    const { firstName, lastName, clientId, nbf, iss, exp } = req.body
-    if (!firstName || !lastName) {
-      if (!user.emailVerified) {
-        const vrfToken = generateEmailVerificationToken()
-        await sendUserVerificationEmail(user, vrfToken)
-        req.response = generateResponse({ email: "verify email" }, 200)
-        next()
-      } else {
-        req.user = user
-        if (req.body.password && user.accountType === "normal") {
-          return loginUser(req, res, next)
-        } else if (
-          user.accountType === "google" &&
-          clientId &&
-          clientId === env.get("GOOGLE_CLIENT_ID") &&
-          nbf &&
-          iss &&
-          exp &&
-          Math.sign(Date.now() - nbf * 1000) === 1 &&
-          Date.now() < exp * 1000 &&
-          iss === env.get("GOOGLE_ISS")
-        ) {
-          return loginUserWithGoogle(req, res, next)
-        } else {
-          req.response = generateResponse(
-            { message: "Invalid credentials" },
-            400
-          )
-          next()
-        }
-      }
-    } else {
+  } else if (req.body.googleJwt) {
+    const decoded = decodeGoogleJwt(req.body.googleJwt)
+    const isDecodedValid = decodedJwtIsValid(decoded)
+    if(!isDecodedValid){
       req.response = generateResponse(
-        { message: "Email address is already in use" },
+        { message: "An error occured!" },
         400
       )
-      next()
+      return next()
     }
+    const existingUser = await getUserByEmail(decoded.email)
+    if (!existingUser) {
+      req.decodedGoogleJwt = decoded
+      return signupWithGoogle(req, res, next)
+    } else {
+      req.user = existingUser
+      return loginWithGoogle(req, res, next)
+    }
+  } else {
+    req.response = generateResponse(
+      { message: "Email address is already in use" },
+      400
+    )
+    return next()
   }
 }
 
@@ -79,3 +63,11 @@ export const handleGetByIdToUsers: RouteHandler = async (req, res, next) => {
   req.response = generateResponse({ user: req.user }, 200)
   next()
 }
+
+/*
+
+      const vrfToken = generateEmailVerificationToken()
+      await sendUserVerificationEmail(user, vrfToken)
+      req.response = generateResponse({ email: "verify email" }, 200)
+      next()
+*/
